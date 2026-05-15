@@ -1,7 +1,7 @@
 #!/bin/bash
 # =============================================================================
-# BuyOurBook — Script de post-déploiement pour Coolify
-# Exécuté automatiquement après chaque déploiement
+# BuyOurBook — Script d'initialisation du conteneur
+# Exécuté automatiquement au démarrage du conteneur (via cont-init.d)
 # =============================================================================
 
 set -e
@@ -12,7 +12,19 @@ echo "🚀 Début du post-déploiement BuyOurBook..."
 echo "📦 Exécution des migrations..."
 php artisan migrate --force
 
-# 2. Lien symbolique storage -> public
+# 2. Créer les dossiers de storage nécessaires (important si volume vide au premier démarrage)
+echo "📁 Création des dossiers de stockage..."
+mkdir -p storage/app/public/banners \
+         storage/app/public/books \
+         storage/app/public/sliders \
+         storage/app/public/popups \
+         storage/app/private \
+         storage/framework/cache/data \
+         storage/framework/sessions \
+         storage/framework/views \
+         storage/logs
+
+# 3. Lien symbolique storage -> public
 echo "🔗 Création du lien storage..."
 php artisan storage:link 2>/dev/null || true
 

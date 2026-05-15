@@ -3,7 +3,7 @@
         <h2 class="font-semibold text-xl text-gray-800 leading-tight">Mes livres en vente</h2>
     </x-slot>
 
-    <div class="py-8">
+    <div class="py-8" x-data="{}">
         <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
 
             {{-- En-tête avec bouton --}}
@@ -13,6 +13,31 @@
                     + Soumettre un livre
                 </a>
             </div>
+
+            {{-- Alerte collecte à domicile --}}
+            @php $pickupBooks = $books->filter(fn($b) => $b->status === \App\Enums\BookStatus::PickupPending); @endphp
+            @if($pickupBooks->count() > 0)
+                <div class="mb-6 bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-start gap-4">
+                    <div class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <p class="font-semibold text-blue-900 text-sm">
+                            Collecte à domicile prévue pour {{ $pickupBooks->count() > 1 ? $pickupBooks->count().' livres' : '1 livre' }}
+                        </p>
+                        <p class="text-blue-700 text-sm mt-0.5">
+                            Notre livreur passera bientôt à votre adresse pour récupérer
+                            @foreach($pickupBooks as $pb)
+                                <strong>« {{ $pb->officialBook->title }} »</strong>{{ !$loop->last ? ', ' : '' }}
+                            @endforeach
+                            et procéder au règlement. Assurez-vous d'être disponible.
+                        </p>
+                    </div>
+                </div>
+            @endif
 
             {{-- Filtres --}}
             <form method="GET" class="bg-white rounded-lg shadow-sm p-4 mb-6 flex flex-wrap gap-4 items-end">
@@ -77,6 +102,11 @@
                                     <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-{{ $book->status->color() }}-100 text-{{ $book->status->color() }}-800">
                                         {{ $book->status->label() }}
                                     </span>
+                                    @if($book->status === \App\Enums\BookStatus::PickupPending)
+                                        <p class="text-xs text-blue-700 mt-1 leading-snug">
+                                            Notre équipe passera bientôt<br>récupérer le livre chez vous.
+                                        </p>
+                                    @endif
                                     @if($book->status === \App\Enums\BookStatus::Rejected && $book->rejection_reason)
                                         <p class="text-xs text-red-600 mt-1">{{ $book->rejection_reason }}</p>
                                     @endif
@@ -97,20 +127,32 @@
                                 </td>
                                 <td class="px-6 py-4 text-right text-sm space-x-2">
                                     @if(in_array($book->status, [\App\Enums\BookStatus::Pending, \App\Enums\BookStatus::Rejected]))
-                                        <a href="{{ route('seller.books.edit', $book) }}" class="text-indigo-600 hover:text-indigo-900">Modifier</a>
+                                        <a href="{{ route('seller.books.edit', $book) }}"
+                                           style="display:inline-flex;align-items:center;gap:0.3rem;padding:0.35rem 0.85rem;background:#4f46e5;color:#fff;border-radius:0.4rem;font-size:0.78rem;font-weight:600;text-decoration:none;transition:opacity .2s;"
+                                           onmouseover="this.style.opacity='.8'" onmouseout="this.style.opacity='1'">
+                                            <svg xmlns="http://www.w3.org/2000/svg" style="width:.85rem;height:.85rem" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                                            Modifier
+                                        </a>
                                     @endif
                                     @unless($book->orderItems()->exists())
                                         <form action="{{ route('seller.books.destroy', $book) }}" method="POST" class="inline"
                                               onsubmit="return confirm('Supprimer ce livre ?')">
                                             @csrf @method('DELETE')
-                                            <button type="submit" class="text-red-600 hover:text-red-900">Supprimer</button>
+                                            <button type="submit"
+                                                    style="display:inline-flex;align-items:center;gap:0.3rem;padding:0.35rem 0.85rem;background:#dc2626;color:#fff;border-radius:0.4rem;font-size:0.78rem;font-weight:600;border:none;cursor:pointer;transition:opacity .2s;"
+                                                    onmouseover="this.style.opacity='.8'" onmouseout="this.style.opacity='1'">
+                                                <svg xmlns="http://www.w3.org/2000/svg" style="width:.85rem;height:.85rem" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                                Supprimer
+                                            </button>
                                         </form>
                                     @endunless
                                     {{-- Répondre à une offre de rachat --}}
                                     @if($book->buyback_status === 'negotiating' && $book->buyback_price)
                                         <button type="button"
                                                 @click="$dispatch('open-buyback', { id: {{ $book->id }}, price: {{ $book->buyback_price }}, notes: {{ json_encode($book->buyback_notes ?? '') }} })"
-                                                class="text-blue-700 font-semibold hover:text-blue-900">
+                                                style="display:inline-flex;align-items:center;gap:0.3rem;padding:0.35rem 0.85rem;background:linear-gradient(135deg,#d97706,#b45309);color:#fff;border-radius:0.4rem;font-size:0.78rem;font-weight:600;border:none;cursor:pointer;transition:opacity .2s;"
+                                                onmouseover="this.style.opacity='.8'" onmouseout="this.style.opacity='1'">
+                                            <svg xmlns="http://www.w3.org/2000/svg" style="width:.85rem;height:.85rem" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/></svg>
                                             Répondre
                                         </button>
                                     @endif
@@ -174,8 +216,14 @@
                             <button type="button" @click="open = false"
                                     class="px-4 py-2 text-sm text-gray-600 hover:text-gray-900">Annuler</button>
                             <button type="submit"
-                                    :class="action === 'reject' ? 'bg-red-600 hover:bg-red-700' : (action === 'accept' ? 'bg-green-600 hover:bg-green-700' : 'bg-blue-600 hover:bg-blue-700')"
-                                    class="px-6 py-2 text-sm font-semibold text-white rounded-lg transition">
+                                    :style="action === 'reject'
+                                        ? 'background:linear-gradient(135deg,#dc2626,#b91c1c);box-shadow:0 2px 6px rgba(220,38,38,.35);'
+                                        : action === 'accept'
+                                            ? 'background:linear-gradient(135deg,#16a34a,#15803d);box-shadow:0 2px 6px rgba(22,163,74,.35);'
+                                            : 'background:linear-gradient(135deg,#2563eb,#1d4ed8);box-shadow:0 2px 6px rgba(37,99,235,.35);'"
+                                    style="display:inline-flex;align-items:center;gap:0.4rem;padding:0.55rem 1.4rem;color:#fff;border:none;border-radius:0.5rem;font-size:0.875rem;font-weight:600;cursor:pointer;transition:opacity .2s;"
+                                    onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">
+                                <svg xmlns="http://www.w3.org/2000/svg" style="width:1rem;height:1rem;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
                                 Confirmer
                             </button>
                         </div>

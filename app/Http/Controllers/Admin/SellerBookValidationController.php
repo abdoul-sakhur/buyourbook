@@ -41,20 +41,43 @@ class SellerBookValidationController extends Controller
 
     public function approve(SellerBook $sellerBook): RedirectResponse
     {
+        abort_unless($sellerBook->status === BookStatus::Pending, 403, 'Ce livre n\'est pas en attente de validation.');
+
         $sellerBook->update([
-            'status' => BookStatus::Approved,
+            'status'           => BookStatus::PickupPending,
             'rejection_reason' => null,
         ]);
 
         $sellerBook->load('officialBook');
         $sellerBook->seller->notify(new SellerBookStatusNotification($sellerBook));
 
-        return redirect()->route('admin.seller-books.index')
-            ->with('success', "Livre de « {$sellerBook->seller->name} » approuvé.");
+        return redirect()->route('admin.seller-books.show', $sellerBook)
+            ->with('success', "Livre validé. Le vendeur a été notifié — collecte à domicile à planifier.");
+    }
+
+    public function markCollected(SellerBook $sellerBook): RedirectResponse
+    {
+        abort_unless($sellerBook->status === BookStatus::PickupPending, 403, 'Ce livre n\'est pas en attente de collecte.');
+
+        $sellerBook->update([
+            'status' => BookStatus::Approved,
+        ]);
+
+        $sellerBook->load('officialBook');
+        $sellerBook->seller->notify(new SellerBookStatusNotification($sellerBook));
+
+        return redirect()->route('admin.seller-books.show', $sellerBook)
+            ->with('success', "Collecte effectuée. Le livre est maintenant visible dans le catalogue.");
     }
 
     public function reject(RejectSellerBookRequest $request, SellerBook $sellerBook): RedirectResponse
     {
+        abort_unless(
+            in_array($sellerBook->status, [BookStatus::Pending, BookStatus::PickupPending]),
+            403,
+            'Ce livre ne peut pas être refusé dans son état actuel.'
+        );
+
         $validated = $request->validated();
 
         $sellerBook->update([
@@ -98,5 +121,26 @@ class SellerBookValidationController extends Controller
 
         return redirect()->route('admin.seller-books.show', $sellerBook)
             ->with('success', 'Paiement du vendeur marqué comme effectué.');
+    }
+
+    public function buybackAcceptDirect(SellerBook $sellerBook): RedirectResponse
+    {
+        abort_unless($sellerBook->status === BookStatus::Approved, 403);
+        abort_unless(
+            in_array($sellerBook->buyback_status, ['pending', 'negotiating']),
+            403,
+            'Cette action n\'est pas disponible pour ce statut de rachat.'
+        );
+
+        $sellerBook->update([
+            'buyback_price'  => $sellerBook->price,
+            'buyback_status' => 'accepted',
+        ]);
+
+        $sellerBook->load('officialBook');
+        $sellerBook->seller->notify(new BuybackOfferNotification($sellerBook));
+
+        return redirect()->route('admin.seller-books.show', $sellerBook)
+            ->with('success', 'Prix du vendeur accepté. Le vendeur a été notifié.');
     }
 }
